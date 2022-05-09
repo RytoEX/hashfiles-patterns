@@ -1,0 +1,129 @@
+name: 'hashFiles Test'
+
+on:
+  push:
+    paths-ignore: ['**.md']
+    branches:
+      - main
+    tags: ['*']
+  pull_request:
+    paths-ignore: ['**.md']
+    branches: [main]
+
+jobs:
+  hashfiles_print:
+    name: 'Print hashFiles Results'
+    runs-on: [ubuntu-latest]
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v3
+
+      - name: 'Print hashFiles output'
+        id: check-hashfiles
+        run: |
+          echo "pwd: $PWD"
+          echo "hashFiles 01 (patches/ABCDE-[0-9]+): ${{ hashFiles('patches/ABCDE-[0-9]+.patch') }}"
+          echo "hashFiles 02 (github.workspace/patches/ABCDE-[0-9]+): ${{ hashFiles('${{ github.workspace }}/patches/ABCDE-[0-9]+.patch') }}"
+          echo "hashFiles 03 (patches folder): ${{ hashFiles('patches') }}"
+          echo "hashFiles 04 (patches/ABCDE-*.patch): ${{ hashFiles('patches/ABCDE-*.patch') }}"
+          echo "hashFiles 05 (patches/ABCDE-12345.patch): ${{ hashFiles('patches/ABCDE-12345.patch') }}"
+          echo "hashFiles 06 (patches/ABCDE-[0-9][0-9][0-9][0-9][0-9].patch): ${{ hashFiles('patches/ABCDE-[0-9][0-9][0-9][0-9][0-9].patch') }}"
+          echo "hashFiles 07 (patches/ABCDE-[0-9]*.patch): ${{ hashFiles('patches/ABCDE-[0-9]*.patch') }}"
+
+  hashfiles_tests:
+    name: 'Test hashFiles Results'
+    runs-on: [ubuntu-latest]
+    env:
+      GITHUB_WORKSPACE: ${{ github.workspace }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v3
+
+      - name: 'Test known good patterns (03, 04, 06, 07): should PASS'
+        id: test-good-patterns-pass
+        if: always() && hashFiles('patches') == hashFiles('patches/ABCDE-*.patch') && hashFiles('patches') == hashFiles('patches/ABCDE-[0-9][0-9][0-9][0-9][0-9].patch') && hashFiles('patches') == hashFiles('patches/ABCDE-[0-9]*.patch')
+        run: |
+          echo "${{ hashFiles('patches') }}"
+          echo "${{ hashFiles('patches/ABCDE-*.patch') }}"
+          echo "${{ hashFiles('patches/ABCDE-[0-9][0-9][0-9][0-9][0-9].patch') }}"
+          echo "${{ hashFiles('patches/ABCDE-[0-9]*.patch') }}"
+          echo ::set-output name=result::true
+
+      - name: 'Test known good patterns (03 == 04): should PASS'
+        id: test-good-patterns-03-04-pass
+        if: always() && (hashFiles('patches') == hashFiles('patches/ABCDE-*.patch'))
+        run: |
+          echo "${{ hashFiles('patches') }}"
+          echo "${{ hashFiles('patches/ABCDE-*.patch') }}"
+          echo ::set-output name=result::true
+
+      - name: 'Test known good patterns (03 == 06): should PASS'
+        id: test-good-patterns-03-06-pass
+        if: always() && (hashFiles('patches') == hashFiles('patches/ABCDE-[0-9][0-9][0-9][0-9][0-9].patch'))
+        run: |
+          echo "${{ hashFiles('patches') }}"
+          echo "${{ hashFiles('patches/ABCDE-[0-9][0-9][0-9][0-9][0-9].patch') }}"
+          echo ::set-output name=result::true
+
+      - name: 'Test known good patterns (03 == 07): should PASS'
+        id: test-good-patterns-03-07-pass
+        if: always() && (hashFiles('patches') == hashFiles('patches/ABCDE-[0-9]*.patch'))
+        run: |
+          echo "${{ hashFiles('patches') }}"
+          echo "${{ hashFiles('patches/ABCDE-[0-9]*.patch') }}"
+          echo ::set-output name=result::true
+
+      - name: 'Test known good patterns (03, 04, 06, 07): should SKIP'
+        id: test-good-patterns
+        if: always() && hashFiles('patches') != hashFiles('patches/ABCDE-*.patch') || hashFiles('patches') != hashFiles('patches/ABCDE-[0-9][0-9][0-9][0-9][0-9].patch') || hashFiles('patches') != hashFiles('patches/ABCDE-[0-9]*.patch')
+        run: |
+          echo "${{ hashFiles('patches') }}"
+          echo "${{ hashFiles('patches/ABCDE-*.patch') }}"
+          echo "${{ hashFiles('patches/ABCDE-[0-9][0-9][0-9][0-9][0-9].patch') }}"
+          echo "${{ hashFiles('patches/ABCDE-[0-9]*.patch') }}"
+          echo ::set-output name=result::false
+          exit 1
+
+      - name: 'Test known good patterns (03 != 04): should SKIP'
+        id: test-good-patterns-03-04-ne
+        if: always() && (hashFiles('patches') != hashFiles('patches/ABCDE-*.patch'))
+        run: |
+          echo "${{ hashFiles('patches') }}"
+          echo "${{ hashFiles('patches/ABCDE-*.patch') }}"
+          echo ::set-output name=result::false
+          exit 1
+
+      - name: 'Test known good patterns (03 != 06): should SKIP'
+        id: test-good-patterns-03-06-ne
+        if: always() && (hashFiles('patches') != hashFiles('patches/ABCDE-[0-9][0-9][0-9][0-9][0-9].patch'))
+        run: |
+          echo "${{ hashFiles('patches') }}"
+          echo "${{ hashFiles('patches/ABCDE-[0-9][0-9][0-9][0-9][0-9].patch') }}"
+          echo ::set-output name=result::false
+          exit 1
+
+      - name: 'Test known good patterns (03 != 07): should SKIP'
+        id: test-good-patterns-03-07-ne
+        if: always() && (hashFiles('patches') != hashFiles('patches/ABCDE-[0-9]*.patch'))
+        run: |
+          echo "${{ hashFiles('patches') }}"
+          echo "${{ hashFiles('patches/ABCDE-[0-9]*.patch') }}"
+          echo ::set-output name=result::false
+          exit 1
+
+      - name: 'Test known bad pattern (01 == 03): should PASS, but SKIPS'
+        id: test-bad-pattern-01
+        if: always() && (hashFiles('patches') == hashFiles('patches/ABCDE-[0-9]+.patch'))
+        run: |
+          echo "${{ hashFiles('patches') }}"
+          echo "${{ hashFiles('patches/ABCDE-[0-9]+.patch') }}"
+          echo ::set-output name=result::true
+
+      - name: 'Test known bad pattern (01 != 03): should SKIP, but FAILS'
+        id: test-bad-pattern-01-ne
+        if: always() && (hashFiles('patches') != hashFiles('patches/ABCDE-[0-9]+.patch'))
+        run: |
+          echo "${{ hashFiles('patches') }}"
+          echo "${{ hashFiles('patches/ABCDE-[0-9]+.patch') }}"
+          echo ::set-output name=result::false
+          exit 1
